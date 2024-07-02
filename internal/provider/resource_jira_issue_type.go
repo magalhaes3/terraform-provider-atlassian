@@ -84,7 +84,7 @@ func (*jiraIssueTypeResource) Schema(_ context.Context, _ resource.SchemaRequest
 				Optional:            true,
 				Computed:            true,
 				Validators: []validator.Int64{
-					int64validator.OneOf(0, -1),
+					int64validator.OneOf(2, 1, 0, -1),
 				},
 			},
 			"avatar_id": schema.Int64Attribute{
