@@ -13,6 +13,9 @@ default: build
 build:
 	go install -v
 
+build-provider:
+	go build -o terraform-provider-atlassian
+
 # See https://golangci-lint.run/
 lint: 
 	golangci-lint run
