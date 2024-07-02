@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	jira "github.com/ctreminiom/go-atlassian/jira/v3"
+	"github.com/ctreminiom/go-atlassian/pkg/infra/models"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -96,7 +97,11 @@ func (d *jiraIssueScreenDataSource) Read(ctx context.Context, req datasource.Rea
 		return
 	}
 
-	issueScreen, res, err := d.p.jira.Screen.Gets(ctx, []int{issueScreenId}, 0, 50)
+	screenParamsScheme := models.ScreenParamsScheme{
+		IDs: []int{issueScreenId},
+	}
+
+	issueScreen, res, err := d.p.jira.Screen.Gets(ctx, &screenParamsScheme, 0, 50)
 	if err != nil {
 		var resBody string
 		if res != nil {

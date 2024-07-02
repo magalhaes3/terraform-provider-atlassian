@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	jira "github.com/ctreminiom/go-atlassian/jira/v3"
+	"github.com/ctreminiom/go-atlassian/pkg/infra/models"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -143,7 +144,11 @@ func (r *jiraIssueScreenResource) Read(ctx context.Context, req resource.ReadReq
 
 	issueScreenId, _ := strconv.Atoi(state.ID.ValueString())
 
-	issueScreen, res, err := r.p.jira.Screen.Gets(ctx, []int{issueScreenId}, 0, 1)
+	screenParamsScheme := models.ScreenParamsScheme{
+		IDs: []int{issueScreenId},
+	}
+
+	issueScreen, res, err := r.p.jira.Screen.Gets(ctx, &screenParamsScheme, 0, 1)
 	if err != nil {
 		var resBody string
 		if res != nil {
