@@ -3,7 +3,9 @@ package atlassian
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"strconv"
+	"strings"
 
 	jira "github.com/ctreminiom/go-atlassian/jira/v3"
 	"github.com/ctreminiom/go-atlassian/pkg/infra/models"
@@ -34,7 +36,6 @@ type (
 		IssueTypeScreenScheme    types.Int64  `tfsdk:"issue_type_screen_scheme"`
 		WorkflowScheme           types.Int64  `tfsdk:"workflow_scheme"`
 		LeadAccountId            types.String `tfsdk:"lead_account_id"`
-		ProjectTemplateKey       types.String `tfsdk:"project_template_key"`
 		ProjectTypeKey           types.String `tfsdk:"project_type_key"`
 		URL                      types.String `tfsdk:"url"`
 	}
@@ -106,10 +107,6 @@ func (*jiraProjectResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 				Optional:            true,
 				Computed:            true,
 			},
-			"project_template_key": schema.StringAttribute{
-				MarkdownDescription: "A predefined configuration for a project. The type of the projectTemplateKey must match with the type of the projectTypeKey.",
-				Optional:            true,
-			},
 			"project_type_key": schema.StringAttribute{
 				MarkdownDescription: "The project type, which defines the application-specific feature set. If you don't specify the project template you have to specify the project type. Valid values: software, service_desk, business",
 				Optional:            true,
@@ -161,21 +158,6 @@ func (r *jiraProjectResource) Create(ctx context.Context, req resource.CreateReq
 		"createPlan": fmt.Sprintf("%+v", plan),
 	})
 
-	// if !plan.ProjectTemplateKey.IsUnknown() {
-	// 	if !plan.IssueTypeScheme.IsUnknown() {
-	// 		resp.Diagnostics.AddError("User Error", "If you specify the `issue_type_scheme` you cannot specify the `project_template_key`.")
-	// 		return
-	// 	}
-	// 	if !plan.IssueTypeScreenScheme.IsUnknown() {
-	// 		resp.Diagnostics.AddError("User Error", "If you specify the `issue_type_screen_scheme` you cannot specify the `project_template_key`.")
-	// 		return
-	// 	}
-	// 	if !plan.WorkflowScheme.IsUnknown() && !plan.ProjectTemplateKey.IsUnknown() {
-	// 		resp.Diagnostics.AddError("User Error", "If you specify the `workflow_scheme` you cannot specify the `project_template_key`.")
-	// 		return
-	// 	}
-	// }
-
 	projectPayload := new(models.ProjectPayloadScheme)
 	projectPayload.Key = plan.Key.ValueString()
 	projectPayload.Name = plan.Name.ValueString()
@@ -185,7 +167,6 @@ func (r *jiraProjectResource) Create(ctx context.Context, req resource.CreateReq
 	projectPayload.IssueTypeScheme = int(plan.IssueTypeScheme.ValueInt64())
 	projectPayload.IssueTypeScreenScheme = int(plan.IssueTypeScreenScheme.ValueInt64())
 	projectPayload.LeadAccountID = plan.LeadAccountId.ValueString()
-	projectPayload.ProjectTemplateKey = plan.ProjectTemplateKey.ValueString()
 	projectPayload.ProjectTypeKey = plan.ProjectTypeKey.ValueString()
 	projectPayload.URL = plan.URL.ValueString()
 	projectPayload.WorkflowScheme = int(plan.WorkflowScheme.ValueInt64())
@@ -230,14 +211,13 @@ func (r *jiraProjectResource) Read(ctx context.Context, req resource.ReadRequest
 	}
 	tflog.Debug(ctx, "Retrieved project from API state")
 
+	state.ID = types.StringValue(project.ID)
 	state.Key = types.StringValue(project.Key)
 	state.Name = types.StringValue(project.Name)
 	state.Description = types.StringValue(project.Description)
-	// state.AvatarId = types.Int64Value(int64(project.))
-	// state.FieldConfigurationScheme = types.Int64Value(int64(project.Iss))
-	// projectIdInt, err := strconv.Atoi(projectID)
-	// r.p.jira.Issue.Field.Configuration.Scheme.Gets(ctx, []int{projectIdInt}, 0, 50)
-	// state.IssueTypeScheme = project.IssueTypes[len(project.IssueTypes)-1].
+	avatarUrl, _ := url.Parse(project.AvatarUrls.One6X16)
+	avatarID, _ := strconv.Atoi(strings.Split(avatarUrl.Path, "/")[9])
+	state.AvatarId = types.Int64Value(int64(avatarID))
 	state.LeadAccountId = types.StringValue(project.Lead.AccountID)
 	state.ProjectTypeKey = types.StringValue(project.ProjectTypeKey)
 	state.URL = types.StringValue(project.URL)
@@ -276,7 +256,6 @@ func (r *jiraProjectResource) Update(ctx context.Context, req resource.UpdateReq
 	projectPayload.Name = plan.Name.ValueString()
 	projectPayload.Description = plan.Description.ValueString()
 	projectPayload.AvatarID = int(plan.AvatarId.ValueInt64())
-	projectPayload.ProjectTemplateKey = plan.ProjectTemplateKey.ValueString()
 	projectPayload.ProjectTypeKey = plan.ProjectTypeKey.ValueString()
 	projectPayload.URL = plan.URL.ValueString()
 
@@ -287,11 +266,15 @@ func (r *jiraProjectResource) Update(ctx context.Context, req resource.UpdateReq
 	}
 	tflog.Debug(ctx, "Updated issue type in API state")
 
+	avatarUrl, _ := url.Parse(returnedProject.AvatarUrls.One6X16)
+	avatarID, _ := strconv.Atoi(strings.Split(avatarUrl.Path, "/")[9])
+
 	var result = jiraProjectResourceModel{
 		ID:             types.StringValue(returnedProject.ID),
 		Key:            types.StringValue(returnedProject.Key),
 		Name:           types.StringValue(returnedProject.Name),
 		Description:    types.StringValue(returnedProject.Description),
+		AvatarId:       types.Int64Value(int64(avatarID)),
 		LeadAccountId:  types.StringValue(returnedProject.Lead.AccountID),
 		ProjectTypeKey: types.StringValue(returnedProject.ProjectTypeKey),
 		URL:            types.StringValue(returnedProject.URL),
@@ -311,7 +294,6 @@ func (r *jiraProjectResource) Delete(ctx context.Context, req resource.DeleteReq
 	}
 	tflog.Debug(ctx, "Loaded project from state")
 
-	// res, err := r.p.jira.Issue.Type.Delete(ctx, state.ID.ValueString())
 	res, err := r.p.jira.Project.Delete(ctx, state.ID.ValueString(), false)
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to delete project, got error: %s\n%s", err, res.Bytes.String()))
