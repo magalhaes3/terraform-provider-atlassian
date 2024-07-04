@@ -303,9 +303,7 @@ func (r *jiraIssueFieldConfigurationItemResource) Update(ctx context.Context, re
 	res, err := r.p.jira.Issue.Field.Configuration.Item.Update(ctx, issueFieldConfigurationId, &updateRequestPayload)
 	if err != nil {
 		var resBody string
-		if err != nil {
-			resBody = res.Bytes.String()
-		}
+		resBody = res.Bytes.String()
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to update issue field configuration item, got error: %s\n%s", err, resBody))
 		return
 	}
