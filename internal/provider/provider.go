@@ -202,5 +202,6 @@ func (*atlassianProvider) DataSources(ctx context.Context) []func() datasource.D
 		NewJiraScreenSchemeDataSource,
 		NewJiraServerInfoDataSource,
 		NewJiraStatusDataSource,
+		NewJiraWorkflowSchemeDataSource,
 	}
 }
