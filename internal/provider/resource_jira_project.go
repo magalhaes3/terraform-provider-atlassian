@@ -260,7 +260,22 @@ func (r *jiraProjectResource) Read(ctx context.Context, req resource.ReadRequest
 		}
 	}
 
-	tflog.Debug(ctx, "Storing issue type into the state", map[string]interface{}{
+	if state.WorkflowScheme.ValueInt64() != 0 {
+		workflowScheme, res, err := r.p.jira.Workflow.Scheme.Get(ctx, int(state.WorkflowScheme.ValueInt64()), false)
+		if err != nil {
+			if res == nil {
+				resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to get workflow scheme, got error: %s", err.Error()))
+			} else {
+				resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to get workflow scheme, got error: %s\n%s", err.Error(), res.Bytes.String()))
+			}
+			return
+		}
+		if workflowScheme != nil {
+			state.WorkflowScheme = types.Int64Value(int64(workflowScheme.ID))
+		}
+	}
+
+	tflog.Debug(ctx, "Storing project into the state", map[string]interface{}{
 		"readNewState": fmt.Sprintf("%+v", state),
 	})
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
@@ -316,7 +331,14 @@ func (r *jiraProjectResource) Update(ctx context.Context, req resource.UpdateReq
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to assign issue type scheme to project, got error: %s\n%s", err.Error(), response.Bytes.String()))
 		return
 	}
-	tflog.Debug(ctx, "Assigned issue type scheme to project")
+	tflog.Debug(ctx, "Assigned issue type screen scheme to project")
+
+	response, err = r.p.jira.Workflow.Scheme.Assign(ctx, plan.WorkflowScheme.String(), returnedProject.ID)
+	if err != nil {
+		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to assign workflow scheme to project, got error: %s\n%s", err.Error(), response.Bytes.String()))
+		return
+	}
+	tflog.Debug(ctx, "Assigned workflow scheme to project")
 
 	avatarUrl, _ := url.Parse(returnedProject.AvatarUrls.One6X16)
 	avatarID, _ := strconv.Atoi(strings.Split(avatarUrl.Path, "/")[9])
@@ -332,6 +354,7 @@ func (r *jiraProjectResource) Update(ctx context.Context, req resource.UpdateReq
 		LeadAccountId:         types.StringValue(returnedProject.Lead.AccountID),
 		ProjectTypeKey:        types.StringValue(returnedProject.ProjectTypeKey),
 		URL:                   types.StringValue(returnedProject.URL),
+		WorkflowScheme:        types.Int64Value(plan.WorkflowScheme.ValueInt64()),
 	}
 
 	tflog.Debug(ctx, "Storing issue type into the state")
