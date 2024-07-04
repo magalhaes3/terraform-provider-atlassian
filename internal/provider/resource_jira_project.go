@@ -244,6 +244,22 @@ func (r *jiraProjectResource) Read(ctx context.Context, req resource.ReadRequest
 		}
 	}
 
+	issueTypeScreenSchemes, res, err := r.p.jira.Issue.Type.ScreenScheme.Projects(ctx, []int{projectIDInt}, 0, 1)
+	if err != nil {
+		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to get issue type screen schemes, got error: %s\n%s", err.Error(), res.Bytes.String()))
+		return
+	}
+
+	for _, issueTypeScreenScheme := range issueTypeScreenSchemes.Values {
+		for issueTypeScreenSchemeProjectId := range issueTypeScreenScheme.ProjectIds {
+			if issueTypeScreenSchemeProjectId == projectIDInt {
+				issueTypeScreenSchemeId, _ := strconv.Atoi(issueTypeScreenScheme.IssueTypeScreenScheme.ID)
+				state.IssueTypeScreenScheme = types.Int64Value(int64(issueTypeScreenSchemeId))
+				break
+			}
+		}
+	}
+
 	tflog.Debug(ctx, "Storing issue type into the state", map[string]interface{}{
 		"readNewState": fmt.Sprintf("%+v", state),
 	})
@@ -295,19 +311,27 @@ func (r *jiraProjectResource) Update(ctx context.Context, req resource.UpdateReq
 	}
 	tflog.Debug(ctx, "Assigned issue type scheme to project")
 
+	response, err = r.p.jira.Issue.Type.ScreenScheme.Assign(ctx, plan.IssueTypeScreenScheme.String(), returnedProject.ID)
+	if err != nil {
+		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to assign issue type scheme to project, got error: %s\n%s", err.Error(), response.Bytes.String()))
+		return
+	}
+	tflog.Debug(ctx, "Assigned issue type scheme to project")
+
 	avatarUrl, _ := url.Parse(returnedProject.AvatarUrls.One6X16)
 	avatarID, _ := strconv.Atoi(strings.Split(avatarUrl.Path, "/")[9])
 
 	var result = jiraProjectResourceModel{
-		ID:              types.StringValue(returnedProject.ID),
-		Key:             types.StringValue(returnedProject.Key),
-		Name:            types.StringValue(returnedProject.Name),
-		Description:     types.StringValue(returnedProject.Description),
-		AvatarId:        types.Int64Value(int64(avatarID)),
-		IssueTypeScheme: types.Int64Value(plan.IssueTypeScheme.ValueInt64()),
-		LeadAccountId:   types.StringValue(returnedProject.Lead.AccountID),
-		ProjectTypeKey:  types.StringValue(returnedProject.ProjectTypeKey),
-		URL:             types.StringValue(returnedProject.URL),
+		ID:                    types.StringValue(returnedProject.ID),
+		Key:                   types.StringValue(returnedProject.Key),
+		Name:                  types.StringValue(returnedProject.Name),
+		Description:           types.StringValue(returnedProject.Description),
+		AvatarId:              types.Int64Value(int64(avatarID)),
+		IssueTypeScheme:       types.Int64Value(plan.IssueTypeScheme.ValueInt64()),
+		IssueTypeScreenScheme: types.Int64Value(plan.IssueTypeScreenScheme.ValueInt64()),
+		LeadAccountId:         types.StringValue(returnedProject.Lead.AccountID),
+		ProjectTypeKey:        types.StringValue(returnedProject.ProjectTypeKey),
+		URL:                   types.StringValue(returnedProject.URL),
 	}
 
 	tflog.Debug(ctx, "Storing issue type into the state")
